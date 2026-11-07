@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ICA | Calendario Escolar</title>
+
+<!-- Aplica el tema guardado antes de pintar la página (evita parpadeo) -->
+<script>
+    document.documentElement.dataset.theme =
+        localStorage.getItem("icaTheme") ||
+        (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+
+<aside class="sidebar">
+    <div class="logo">
+        <div class="logo-icon">ICA</div>
+        <div>
+            <h2>ICA School</h2>
+            <span>Academic Platform</span>
+        </div>
+    </div>
+
+    <p class="nav-title">PRINCIPAL</p>
+
+    <button class="nav-item active" type="button" data-view="calendar">
+        ▦ Calendario escolar
+    </button>
+
+    <button class="nav-item" type="button" data-view="activities">
+        ◷ Actividades
+    </button>
+
+    <button class="nav-item" type="button" data-view="events">
+        ▤ Eventos
+    </button>
+
+    <div class="sidebar-bottom">
+        <strong>INSTITUCIÓN EDUCATIVA</strong>
+        <p>Calendario académico y gestión de actividades escolares.</p>
+    </div>
+</aside>
+
+<!-- MAIN -->
+
+<main class="main">
+
+    <header class="topbar">
+        <div>
+            <h1>Calendario Escolar</h1>
+            <p>Organiza, consulta y administra las actividades de tu institución.</p>
+        </div>
+
+        <div class="top-actions">
+            <button class="theme-toggle" type="button" id="themeToggle"
+                    aria-label="Cambiar tema">☾</button>
+
+            <button class="primary-btn" onclick="openModal()">
+                + Crear evento
+            </button>
+        </div>
+    </header>
+
+    <!-- STATISTICS -->
+
+    <section class="stats">
+        <div class="stat-card">
+            <span class="stat-icon">▦</span>
+            <p>Eventos registrados</p>
+            <h2 id="totalEvents">0</h2>
+        </div>
+
+        <div class="stat-card">
+            <span class="stat-icon">◷</span>
+            <p>Próximos eventos</p>
+            <h2 id="upcomingCount">0</h2>
+        </div>
+
+        <div class="stat-card">
+            <span class="stat-icon">✓</span>
+            <p>Actividades este mes</p>
+            <h2 id="monthCount">0</h2>
+        </div>
+    </section>
+
+    <!-- CALENDAR AND EVENTS -->
+
+    <section class="content">
+
+        <div class="panel">
+            <div class="panel-header">
+                <h2>Calendario de actividades</h2>
+
+                <div class="month-controls">
+                    <button onclick="changeMonth(-1)" aria-label="Mes anterior">‹</button>
+                    <span id="monthTitle"></span>
+                    <button onclick="changeMonth(1)" aria-label="Mes siguiente">›</button>
+                </div>
+            </div>
+
+            <div class="calendar-grid" id="calendar">
+            </div>
+
+            <p class="add-hint">
+                Selecciona cualquier día para programar una actividad.
+            </p>
+        </div>
+
+        <div class="right-panel">
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Buscar eventos</h2>
+                </div>
+
+                <input
+                    class="search"
+                    type="text"
+                    id="searchInput"
+                    placeholder="Buscar una actividad..."
+                    oninput="renderUpcoming()"
+                >
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Próximas actividades</h2>
+                </div>
+
+                <div class="upcoming-list" id="upcomingList"></div>
+            </div>
+
+        </div>
+    </section>
+</main>
+
+<!-- MODAL -->
+
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+
+        <div class="modal-header">
+            <h2 id="modalTitle">Crear evento</h2>
+            <button class="close-btn" onclick="closeModal()" aria-label="Cerrar">✕</button>
+        </div>
+
+        <form id="eventForm">
+
+            <input type="hidden" id="eventId">
+
+            <div class="form-group">
+                <label>Nombre de la actividad</label>
+                <input id="eventName" type="text"
+                    placeholder="Ej. Feria de ciencias" required maxlength="80">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Fecha</label>
+                    <input id="eventDate" type="date" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Hora</label>
+                    <input id="eventTime" type="time" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Categoría</label>
+                <select id="eventCategory">
+                    <option value="Academico">Académico</option>
+                    <option value="Cultural">Cultural</option>
+                    <option value="Deportivo">Deportivo</option>
+                    <option value="Reunion">Reunión</option>
+                    <option value="Otro">Otro</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Descripción</label>
+                <textarea id="eventDescription"
+                    placeholder="Describe brevemente la actividad..."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="primary-btn" type="submit">
+                    Guardar evento
+                </button>
+
+                <button class="delete-btn" type="button"
+                    id="deleteButton" onclick="deleteEvent()" hidden>
+                    Eliminar
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<script>
+
+// CONFIGURACIÓN
+
+let events = JSON.parse(localStorage.getItem("icaEvents")) || [];
+
+let currentDate = new Date();
+
+const calendar = document.getElementById("calendar");
+
+const months = [
+    "Enero", "Febrero", "Marzo", "Abril",
+    "Mayo", "Junio", "Julio", "Agosto",
+    "Septiembre", "Octubre", "Noviembre", "Diciembre"
+];
+
+const weekdays = [
+    "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"
+];
+
+function saveEvents() {
+    localStorage.setItem("icaEvents", JSON.stringify(events));
+}
+
+// FORMATO DE FECHA LOCAL
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
+function getToday() {
+    return formatDate(new Date());
+}
+
+// DIBUJAR CALENDARIO
+
+function renderCalendar() {
+
+    calendar.innerHTML = "";
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+
+    document.getElementById("monthTitle").textContent =
+        `${months[month]} ${year}`;
+
+    weekdays.forEach(day => {
+        const heading = document.createElement("div");
+        heading.className = "weekday";
+        heading.textContent = day;
+        calendar.appendChild(heading);
+    });
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const previousDays = new Date(year, month, 0).getDate();
+
+    const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+
+    for (let i = 0; i < totalCells; i++) {
+
+        let dayNumber;
+        let cellDate;
+        let otherMonth = false;
+
+        if (i < firstDay) {
+            dayNumber = previousDays - firstDay + i + 1;
+            cellDate = new Date(year, month - 1, dayNumber);
+            otherMonth = true;
+        } else if (i >= firstDay + daysInMonth) {
+            dayNumber = i - firstDay - daysInMonth + 1;
+            cellDate = new Date(year, month + 1, dayNumber);
+            otherMonth = true;
+        } else {
+            dayNumber = i - firstDay + 1;
+            cellDate = new Date(year, month, dayNumber);
+        }
+
+        const dateString = formatDate(cellDate);
+
+        const dayElement = document.createElement("div");
+        dayElement.className = "day";
+
+        if (otherMonth) dayElement.classList.add("other-month");
+
+        if (dateString === getToday()) {
+            dayElement.classList.add("today");
+        }
+
+        const number = document.createElement("div");
+        number.className = "day-number";
+        number.textContent = dayNumber;
+
+        dayElement.appendChild(number);
+
+        const dayEvents = events
+            .filter(event => event.date === dateString)
+            .sort((a, b) => a.time.localeCompare(b.time));
+
+        dayEvents.slice(0, 3).forEach(event => {
+
+            const chip = document.createElement("div");
+            chip.className = `event-chip ${event.category}`;
+            chip.textContent = event.name;
+            chip.title = event.name;
+
+            chip.onclick = (e) => {
+                e.stopPropagation();
+                editEvent(event.id);
+            };
+
+            dayElement.appendChild(chip);
+        });
+
+        if (dayEvents.length > 3) {
+            const more = document.createElement("div");
+            more.style.fontSize = "10px";
+            more.style.color = "var(--muted)";
+            more.textContent = `+${dayEvents.length - 3} más`;
+            dayElement.appendChild(more);
+        }
+
+        dayElement.onclick = () => openModal(dateString);
+
+        calendar.appendChild(dayElement);
+    }
+
+    updateStats();
+}
+
+// CAMBIAR MES
+
+function changeMonth(direction) {
+    currentDate.setMonth(currentDate.getMonth() + direction);
+    renderCalendar();
+}
+
+// ESTADÍSTICAS
+
+function updateStats() {
+
+    const today = getToday();
+
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+
+    document.getElementById("totalEvents").textContent =
+        events.length;
+
+    document.getElementById("upcomingCount").textContent =
+        events.filter(e => e.date >= today).length;
+
+    document.getElementById("monthCount").textContent =
+        events.filter(e => {
+            const d = new Date(e.date + "T12:00:00");
+            return d.getMonth() === currentMonth &&
+                   d.getFullYear() === currentYear;
+        }).length;
+}
+
+// PRÓXIMOS EVENTOS
+
+function renderUpcoming() {
+
+    const list = document.getElementById("upcomingList");
+    const search = document.getElementById("searchInput")
+        .value.toLowerCase();
+
+    list.innerHTML = "";
+
+    const today = getToday();
+
+    const upcoming = events
+        .filter(event =>
+            event.date >= today &&
+            event.name.toLowerCase().includes(search)
+        )
+        .sort((a, b) =>
+            (a.date + a.time).localeCompare(b.date + b.time)
+        )
+        .slice(0, 8);
+
+    if (upcoming.length === 0) {
+        list.innerHTML =
+            '<div class="empty">No hay actividades próximas.</div>';
+        return;
+    }
+
+    upcoming.forEach(event => {
+
+        const date = new Date(event.date + "T12:00:00");
+
+        const item = document.createElement("div");
+        item.className = "upcoming-item";
+
+        const dateBox = document.createElement("div");
+        dateBox.className = "date-box";
+
+        const day = document.createElement("strong");
+        day.textContent = date.getDate();
+
+        const month = document.createElement("span");
+        month.textContent = months[date.getMonth()].slice(0, 3);
+
+        dateBox.append(day, month);
+
+        const details = document.createElement("div");
+
+        const name = document.createElement("h3");
+        name.textContent = event.name;
+
+        const info = document.createElement("p");
+        info.textContent =
+            `${event.time} · ${event.category}`;
+
+        details.append(name, info);
+        item.append(dateBox, details);
+
+        item.onclick = () => editEvent(event.id);
+
+        list.appendChild(item);
+    });
+}
+
+// ABRIR MODAL
+
+function openModal(date = getToday()) {
+
+    document.getElementById("eventForm").reset();
+    document.getElementById("eventId").value = "";
+
+    document.getElementById("eventDate").value = date;
+    document.getElementById("eventTime").value = "08:00";
+
+    document.getElementById("modalTitle").textContent =
+        "Crear evento";
+
+    document.getElementById("deleteButton").hidden = true;
+
+    document.getElementById("modalOverlay")
+        .classList.add("show");
+}
+
+// CERRAR MODAL
+
+function closeModal() {
+    document.getElementById("modalOverlay")
+        .classList.remove("show");
+}
+
+// EDITAR EVENTO
+
+function editEvent(id) {
+
+    const event = events.find(e => e.id === id);
+
+    if (!event) return;
+
+    document.getElementById("eventId").value = event.id;
+    document.getElementById("eventName").value = event.name;
+    document.getElementById("eventDate").value = event.date;
+    document.getElementById("eventTime").value = event.time;
+    document.getElementById("eventCategory").value = event.category;
+    document.getElementById("eventDescription").value =
+        event.description || "";
+
+    document.getElementById("modalTitle").textContent =
+        "Editar evento";
+
+    document.getElementById("deleteButton").hidden = false;
+
+    document.getElementById("modalOverlay")
+        .classList.add("show");
+}
+
+// ACTUALIZAR TODA LA INTERFAZ
+
+function refresh() {
+    renderCalendar();
+    renderUpcoming();
+    updateStats();
+}
+
+// TEMA CLARO / OSCURO
+
+const themeToggle = document.getElementById("themeToggle");
+
+function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("icaTheme", theme);
+    themeToggle.textContent = theme === "dark" ? "☾" : "☀";
+}
+
+themeToggle.onclick = () => {
+    const next =
+        document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+};
+
+applyTheme(document.documentElement.dataset.theme);
+
+// INICIAR PLATAFORMA
+
+refresh();
+
+</script>
+<script src="actividades.js"></script>
+
+</body>
+</html>
